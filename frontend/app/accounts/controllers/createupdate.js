@@ -24,6 +24,10 @@ function accountConfig($stateProvider) {
                 return null;
             },
         },
+        params: {
+            'name': '',
+            'phone_numbers': [],
+        },
     });
 
     $stateProvider.state('base.accounts.detail.edit', {
@@ -138,6 +142,8 @@ function AccountCreateController($scope, $state, $stateParams, $timeout, Account
 
             vm.account = Account.create();
             vm.account.status = vm.defaultNewStatus;
+            vm.account.name = $stateParams.name;
+            vm.account.phone_numbers = $stateParams.phone_numbers;
 
             User.me().$promise.then(function(user) {
                 vm.account.assigned_to = user.id;
