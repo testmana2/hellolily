@@ -3,10 +3,10 @@ from django.core.management.base import BaseCommand
 from lily.accounts.models import Account, AccountStatus, Website
 from lily.cases.models import CaseType, CaseStatus
 from lily.deals.models import DealContactedBy, DealFoundThrough, DealNextStep, DealWhyCustomer, DealWhyLost, DealStatus
+from lily.socialmedia.models import SocialMedia
 from lily.tenant.models import Tenant
 from lily.users.models import Team
 from lily.utils.models.models import EmailAddress
-from lily.socialmedia.models import SocialMedia
 
 
 class Command(BaseCommand):
