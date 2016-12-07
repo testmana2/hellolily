@@ -108,15 +108,17 @@ class Command(BaseCommand):
         account = Account.objects.create(
             tenant=tenant,
             name='Team Lily',
-            description=('Team Lily has been added automatically. Feel free to add all the other companies,'
-                         'organizations and other parties you get in touch with as Accounts.'
-                         ),
+            description=(
+                'Team Lily has been added automatically. Feel free to add all the other companies,'
+                'organizations and other parties you get in touch with as Accounts.'
+            ),
             status=account_status,
         )
 
         website = Website.objects.create(
             website='https://hellolily.com',
-            is_primary=True, account=account,
+            is_primary=True,
+            account=account,
             tenant=tenant,
         )
 
