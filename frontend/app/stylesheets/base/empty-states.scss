@@ -4,6 +4,14 @@
     right: 0;
     top: 0;
     bottom: 0;
+
+    &.is-inbox {
+        left: 16px;
+        right: 16px;
+        top: 1px;
+        bottom: 1px;
+        z-index: 10;
+    }
 }
 
 .empty-state-overlay {
