@@ -83,7 +83,7 @@ function DealListController($filter, $scope, $state, $timeout, Deal, HLFilters, 
             _setupWatchers();
             _getFilterOnList();
             _getFilterSpecialList();
-            getNumberOfDeals();
+            showEmptyState();
         }, 50);
 
         Tenant.query({}, function(tenant) {
@@ -98,11 +98,11 @@ function DealListController($filter, $scope, $state, $timeout, Deal, HLFilters, 
     }
 
     /**
-     * getNumberOfDeals is used to count the total amount of cases used to show or not
+     * showEmptyState is used to count the total amount of deals used to show or not
      * show the empty state.
      *
      */
-    function getNumberOfDeals() {
+    function showEmptyState() {
         Deal.query({}, function(data) {
             if (data.pagination.total === 0) {
                 vm.showEmptyState = true;
