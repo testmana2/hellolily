@@ -213,12 +213,16 @@
     .has-success {
         .form-control {
             border-color: #ebccd1;
-
         }
+
         .input-group-addon {
             background-color: #f2dede;
             color: #a94442;
             border-color: #ebccd1;
+        }
+
+        .checkbox {
+            color: #333;
         }
     }
 }
