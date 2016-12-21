@@ -20,6 +20,8 @@ dist-packages/
 .tld_set
 yarn.lock
 .ipython/
+.history/
+tags
 
 celerybeat-schedule
 celeryev.pid

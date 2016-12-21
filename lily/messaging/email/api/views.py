@@ -6,6 +6,7 @@ from django.utils.translation import ugettext_lazy as _
 
 from rest_framework import viewsets, mixins, status, filters, serializers
 from rest_framework.decorators import detail_route, list_route
+from rest_framework.exceptions import NotFound
 from rest_framework.filters import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -79,7 +80,7 @@ class EmailAccountViewSet(mixins.DestroyModelMixin,
     filter_fields = (
         'owner',
         'shared_with_users__id',
-        'public',
+        'privacy',
     )
 
     def get_queryset(self):
@@ -96,7 +97,7 @@ class EmailAccountViewSet(mixins.DestroyModelMixin,
     def mine(self, request):
         email_account_list = EmailAccount.objects.filter(
             Q(owner=request.user) |
-            Q(public=True) |
+            Q(privacy=EmailAccount.PUBLIC) |
             Q(shared_with_users__id=request.user.pk)
         ).filter(is_deleted=False).distinct('id')
 
@@ -129,7 +130,6 @@ class EmailAccountViewSet(mixins.DestroyModelMixin,
         """
         account = EmailAccount.objects.get(id=pk, owner=request.user)
         account.shared_with_users.clear()
-        account.public = False
         account.save()
 
         for user_id in request.data['shared_with_users']:
@@ -155,8 +155,66 @@ class EmailMessageViewSet(mixins.RetrieveModelMixin,
     queryset = EmailMessage.objects.all()
     serializer_class = EmailMessageSerializer
 
+    def get_object(self):
+        pk = int(self.kwargs['pk'])
+        email_message = EmailMessage.objects.get(pk=pk)
+
+        try:
+            email_account = EmailAccount.objects.get(pk=email_message.account.id)
+        except EmailAccount.DoesNotExist:
+            email_message = None
+        else:
+            email_message = self.get_filtered_message(email_message, email_account)
+
+        if not email_message:
+            raise NotFound()
+
+        return email_message
+
     def get_queryset(self):
-        return EmailMessage.objects.filter(account__tenant=self.request.user.tenant)
+        # return EmailMessage.objects.filter(account__tenant=self.request.user.tenant)
+        user = self.request.user
+        email_messages = EmailMessage.objects.filter(account__tenant=self.request.user.tenant)
+
+        # Get all email accounts.
+        email_accounts = EmailAccount.objects.filter(tenant=user.tenant, is_deleted=False).distinct('id')
+
+        filtered_queryset = []
+
+        for email_message in email_messages:
+            email_account = email_accounts.get(pk=email_message.account.id)
+
+            filtered_message = self.get_filtered_message(email_message, email_account)
+
+            if filtered_message:
+                filtered_queryset.append(filtered_message)
+
+        email_messages = filtered_queryset
+
+        return email_messages
+
+    def get_filtered_message(self, email_message, email_account):
+        # Check if the user has full access to the email messages.
+        # This means the user is either the owner or the email account has been shared with him/her.
+        is_owner = email_account.owner == self.request.user
+        shared_with = (self.request.user.id in email_account.shared_with_users.values_list('id', flat=True))
+        has_access = (is_owner or shared_with)
+
+        # If the email account is set to metadata only, just set these fields.
+        if (email_account.privacy == EmailAccount.METADATA and not has_access):
+            return {
+                'sender': email_message.sender,
+                'subject': email_message.subject,
+                'received_by': email_message.received_by,
+                'received_by_cc': email_message.received_by_cc,
+                'sent_date': email_message.sent_date,
+                'account': email_message.account,
+            }
+        elif email_account.privacy == EmailAccount.PRIVATE and not has_access:
+            # Private email (account), so don't add to list.
+            return None
+        else:
+            return email_message
 
     def perform_update(self, serializer):
         """

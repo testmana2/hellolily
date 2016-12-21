@@ -77,8 +77,8 @@ function PreferencesEmailAccountList($compile, $http, $scope, $templateCache, Em
             });
         });
 
-        // Accounts public.
-        EmailAccount.query({public: 'True'}, function(data) {
+        // Get public accounts.
+        EmailAccount.query({privacy: EmailAccount.PUBLIC}, function(data) {
             vm.publicAccounts = data.results;
             data.results.forEach(function(account) {
                 checkHiddenState(account);
@@ -131,7 +131,7 @@ function PreferencesEmailAccountList($compile, $http, $scope, $templateCache, Em
 
                 if (isConfirm) {
                     // Save updated account information.
-                    if (vm.currentAccount.public) {
+                    if (vm.currentAccount.isPublic) {
                         EmailAccount.update({id: vm.currentAccount.id}, vm.currentAccount, function() {
                             swal.close();
                             loadAccounts();

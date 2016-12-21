@@ -4,6 +4,7 @@ from django.views.generic.base import View
 import anyjson
 import freemail
 from lily.accounts.models import Website
+from lily.messaging.email.models.models import EmailAccount
 from lily.utils.functions import parse_phone_number
 from lily.utils.views.mixins import LoginRequiredMixin
 
@@ -25,6 +26,8 @@ class SearchView(LoginRequiredMixin, View):
                 took (int): milliseconds Elastic search took to get the results
         """
         kwargs = {}
+        user = self.request.user
+
         model_type = request.GET.get('type')
         if model_type:
             kwargs['model_type'] = model_type
@@ -76,7 +79,7 @@ class SearchView(LoginRequiredMixin, View):
 
         user_email_related = request.GET.get('user_email_related', '')
         if user_email_related:
-            search.user_email_related(self.request.user)
+            search.user_email_related(user)
 
         filterquery = request.GET.get('filterquery', '')
         if filterquery:
@@ -87,6 +90,40 @@ class SearchView(LoginRequiredMixin, View):
             return_fields = None
 
         hits, facets, total, took = search.do_search(return_fields)
+
+        if model_type == 'email_emailmessage':
+            email_accounts = EmailAccount.objects.filter(tenant=user.tenant, is_deleted=False).distinct('id')
+
+            filtered_hits = []
+
+            for hit in hits:
+                email_account = email_accounts.get(pk=hit.get('account').get('id'))
+
+                # Check if the user has full access to the email messages.
+                # This means the user is either the owner or the email account has been shared with him/her.
+                is_owner = email_account.owner == user
+                shared_with = (user.id in email_account.shared_with_users.values_list('id', flat=True))
+                has_access = (is_owner or shared_with)
+
+                # If the email account is set to metadata only, just set these fields.
+                if (email_account.privacy == EmailAccount.METADATA and not has_access):
+                    filtered_hits.append({
+                        'sender_name': hit.get('sender_name'),
+                        'sender_email': hit.get('sender_email'),
+                        'subject': hit.get('sender'),
+                        'received_by_email': hit.get('received_by_email'),
+                        'received_by_name': hit.get('received_by_name'),
+                        'received_by_cc_email': hit.get('received_by_cc_email'),
+                        'received_by_cc_name': hit.get('received_by_cc_name'),
+                        'sent_date': hit.get('sent_date'),
+                    })
+                elif email_account.privacy == EmailAccount.PRIVATE and not has_access:
+                    # Private email (account), so don't add to list.
+                    pass
+                else:
+                    filtered_hits.append(hit)
+
+                hits = filtered_hits
 
         results = {'hits': hits, 'total': total, 'took': took}
 

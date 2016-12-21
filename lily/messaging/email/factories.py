@@ -1,33 +1,71 @@
-import factory
+import datetime
+import unicodedata
+
+from factory.declarations import SubFactory, LazyAttribute
+from factory.django import DjangoModelFactory
+from factory.fuzzy import FuzzyChoice, FuzzyDate, FuzzyText
+from faker.factory import Factory
+from factory.helpers import post_generation
 
 from lily.users.factories import LilyUserFactory
+from lily.tenant.factories import TenantFactory
 
-from .models.models import EmailAccount, EmailMessage, EmailHeader, EmailLabel
+from .models.models import EmailAccount, EmailMessage, Recipient
+
+faker = Factory.create('nl_NL')
+past_date = datetime.date.today() - datetime.timedelta(days=10)
+future_date = datetime.date.today() + datetime.timedelta(days=10)
 
 
-class GmailAccountFactory(factory.DjangoModelFactory):
-    user = factory.SubFactory(LilyUserFactory)
+class EmailAccountFactory(DjangoModelFactory):
+    tenant = SubFactory(TenantFactory)
+    owner = SubFactory(LilyUserFactory)
+    email_address = LazyAttribute(lambda o: unicodedata.normalize('NFD', faker.safe_email()).encode('ascii', 'ignore'))
+    from_name = LazyAttribute(lambda o: faker.name())
+    label = LazyAttribute(lambda o: faker.word())
+    is_authorized = False
+    # shared_with_users = models.ManyToManyField(
+    #     LilyUser,
+    #     related_name='shared_email_accounts',
+    #     help_text=_('Select the users wich to share the account with.'),
+    #     blank=True,
+    # )
+    privacy = FuzzyChoice(dict(EmailAccount.PRIVACY_CHOICES).keys())
 
     class Meta:
         model = EmailAccount
 
 
-class GmailMessageFactory(factory.DjangoModelFactory):
-    account = factory.SubFactory(GmailAccountFactory)
+class RecipientFactory(DjangoModelFactory):
+    name = LazyAttribute(lambda o: faker.name())
+    email_address = LazyAttribute(lambda o: unicodedata.normalize('NFD', faker.safe_email()).encode('ascii', 'ignore'))
+
+    class Meta:
+        model = Recipient
+
+
+class EmailMessageFactory(DjangoModelFactory):
+    subject = LazyAttribute(lambda o: faker.word())
+    sender = SubFactory(RecipientFactory)
+    body_text = LazyAttribute(lambda o: faker.text())
+    sent_date = FuzzyDate(past_date, future_date)
+    account = SubFactory(EmailAccountFactory)
+    message_id = FuzzyText()
+
+    @post_generation
+    def received_by(self, create, extracted, **kwargs):
+        if not create:
+            # Simple build, do nothing.
+            return
+
+        if extracted:
+            if isinstance(extracted, Recipient):
+                # A single team was passed in, use that.
+                self.received_by.add(extracted)
+            else:
+                # A list of teams were passed in, use them.
+                for team in extracted:
+                    self.received_by.add(team)
 
     class Meta:
         model = EmailMessage
-
-
-class GmailHeaderFactory(factory.DjangoModelFactory):
-    message = factory.SubFactory(GmailMessageFactory)
-
-    class Meta:
-        model = EmailHeader
-
-
-class GmailLabelFactory(factory.DjangoModelFactory):
-    label_id = factory.Sequence(lambda n: 'Label_{0}'.format(n))
-
-    class Meta:
-        model = EmailLabel

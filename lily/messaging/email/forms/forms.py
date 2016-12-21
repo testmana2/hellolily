@@ -38,7 +38,7 @@ class EmailAccountCreateUpdateForm(HelloLilyModelForm):
                     'from_name',
                     'label',
                     'email_address',
-                    'public',
+                    'privacy',
                 ],
             }),
         )
@@ -143,7 +143,7 @@ class ComposeEmailForm(FormSetFormMixin, HelloLilyForm):
         self.email_accounts = EmailAccount.objects.filter(
             Q(owner=user) |
             Q(shared_with_users=user) |
-            Q(public=True)
+            Q(privacy=EmailAccount.PUBLIC)
         ).filter(tenant=user.tenant, is_deleted=False).distinct('id')
 
         # Only provide choices you have access to
@@ -402,7 +402,7 @@ class EmailTemplateSetDefaultForm(HelloLilyModelForm):
         user = get_current_user()
         self.fields['default_for'].queryset = EmailAccount.objects.filter(
             Q(owner=user) |
-            Q(public=True) |
+            Q(privacy=EmailAccount.PUBLIC) |
             Q(shared_with_users__id=user.pk)
         ).filter(tenant=user.tenant).distinct('id')
 
