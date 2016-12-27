@@ -14,6 +14,7 @@ from lily.contacts.api.serializers import RelatedContactSerializer
 from lily.contacts.models import Function
 from lily.users.api.serializers import RelatedLilyUserSerializer
 from lily.utils.api.serializers import RelatedTagSerializer
+from lily.utils.functions import add_business_days
 from lily.utils.sanitizers import HtmlSanitizer
 
 from ..models import Deal, DealNextStep, DealWhyCustomer, DealWhyLost, DealFoundThrough, DealContactedBy, DealStatus
@@ -214,6 +215,7 @@ class DealSerializer(WritableNestedSerializer):
     def update(self, instance, validated_data):
         user = self.context.get('request').user
         status_id = validated_data.get('status', instance.status_id)
+        next_step = validated_data.get('next_step')
 
         if isinstance(status_id, dict):
             status_id = status_id.get('id')
@@ -247,6 +249,38 @@ class DealSerializer(WritableNestedSerializer):
             validated_data.update({
                 'description': HtmlSanitizer(description).clean().render(),
             })
+
+        try:
+            none_step = DealNextStep.objects.get(name='None')
+        except DealNextStep.DoesNotExist:
+            pass
+
+        if next_step:
+            try:
+                next_step = DealNextStep.objects.get(pk=next_step.get('id'))
+            except DealNextStep.DoesNotExist:
+                raise serializers.ValidationError({'why_lost': _('This field may not be empty.')})
+            else:
+                if next_step.date_increment != 0:
+                    validated_data.update({
+                        'next_step_date': add_business_days(next_step.date_increment),
+                    })
+                elif none_step and next_step.id == none_step.id:
+                    validated_data.update({
+                        'next_step_date': None,
+                    })
+        #     if (vm.deal.next_step.date_increment !== 0) {
+        #           Update next step date based on next step.
+        #          nextStepDate = HLUtils.addBusinessDays(vm.deal.next_step.date_increment);
+        #          nextStepDate = moment(nextStepDate).format('YYYY-MM-DD');
+
+        #          vm.deal.next_step_date = nextStepDate;
+        #          args.next_step_date = nextStepDate;
+        #      } else if (angular.equals(vm.deal.next_step, vm.noneStep)) {
+        #          // None step is selected, so clear the next step date.
+        #          vm.deal.next_step_date = null;
+        #          args.next_step_date = null;
+        #  }
 
         return super(DealSerializer, self).update(instance, validated_data)
 
